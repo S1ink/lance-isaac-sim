@@ -35,6 +35,7 @@ from omni.isaac.core.utils import stage
 from omni.isaac.core.utils.prims import is_prim_path_valid, define_prim, set_prim_property, create_prim, get_prim_at_path
 from omni.isaac.core.utils.extensions import enable_extension
 from omni.isaac.nucleus import get_assets_root_path
+from omni.isaac.sensor.ogn.python.nodes import OgnIsaacPrintRTXSensorInfo
 from pxr import Gf
 
 # import rclpy
@@ -127,14 +128,16 @@ enable_extension("omni.isaac.ros2_bridge")
 
 simulation_app.update()
 
-# Locate Isaac Sim assets folder to load environment and robot stages
-assets_root_path = get_assets_root_path()
-if assets_root_path is None:
-    carb.log_error("Could not find Isaac Sim assets folder")
-    simulation_app.close()
-    sys.exit()
+carb.settings.get_settings().set("persistent/app/omniverse/gamepadCameraControl", False)
 
-simulation_app.update()
+# Locate Isaac Sim assets folder to load environment and robot stages
+# assets_root_path = get_assets_root_path()
+# if assets_root_path is None:
+#     carb.log_error("Could not find Isaac Sim assets folder")
+#     simulation_app.close()
+#     sys.exit()
+
+# simulation_app.update()
 # Loading the simple_room environment
 # stage.add_reference_to_stage(
 #     assets_root_path + "/Isaac/Environments/Simple_Warehouse/full_warehouse.usd", "/warehouse"
@@ -146,9 +149,14 @@ stage.add_reference_to_stage(
     "./assets/lance.usd", "/lance"
 )
 set_prim_property(
+    prim_path = "/arena/artemis_arena",
+    property_name = "xformOp:translate",
+    property_value = (0, 0, 0)
+)
+set_prim_property(
     prim_path = "/lance/lance",
     property_name = "xformOp:translate",
-    property_value = (1, 1, 1) )
+    property_value = (1, 1, 0.5) )
 create_prim(
     prim_path = "/distantlight",
     prim_type = "DistantLight", 
@@ -176,19 +184,41 @@ simulation_app.update()
 
 # Create the debug draw pipeline in the post process graph
 debug_writer = rep.writers.get("RtxLidar" + "DebugDrawPointCloud" + "Buffer")
-debug_writer.initialize(color = (1, 0.5, 0, 1))
+debug_writer.initialize(color = (0.7, 0.1, 1, 0.7))
 debug_writer.attach([hydra_texture])
 # ros_writer = rep.writers.get("RtxLidar" + "ROS2PublishPointCloud")
 # ros_writer.initialize(topicName = "/lance/lidar_scan", frameId = "lidar_link", queueSize = 1)
 # ros_writer.attach([hydra_texture])
+lidar_annotator = rep.AnnotatorRegistry.get_annotator("RtxSensorCpuIsaacCreateRTXLidarScanBuffer")
+lidar_annotator.initialize(
+    keepOnlyPositiveDistance = False,
+    outputAzimuth = False,
+    outputBeamId = False,
+    outputDistance = False,
+    outputElevation = False,
+    outputEmitterId = False,
+    outputIntensity = False,
+    outputMaterialId = True,
+    outputNormal = False,
+    outputObjectId = False,
+    outputTimestamp = True,
+    outputVelocity = False,
+    transformPoints = False
+)
+lidar_annotator.attach([hydra_texture])
 
 simulation_app.update()
 
 # simulation_context.play()
 
 # rclpy.init()
+def normalize_retro(x : float):
+    return 1. if x == 12. or x == 11. else 0.   # https://docs.omniverse.nvidia.com/isaacsim/latest/features/sensors_simulation/isaac_sim_sensors_rtx_sensor_materials.html
+
+np_normalize_retro = np.frompyfunc(normalize_retro, 1, 1)
 
 # frame = 0
+prev_ts = None
 while simulation_app.is_running():
 
     # if frame == 48:
@@ -197,6 +227,22 @@ while simulation_app.is_running():
     # frame = frame + 1
 
     simulation_app.update()
+    # lidar_annotator.get_data()['data']
+
+    smthin = lidar_annotator.get_data()
+    if(len(smthin['data']) > 0 and smthin['timestamp'][0] != prev_ts) :
+        retro_arr = np_normalize_retro(smthin['materialId'])
+        x = np.hstack((smthin['data'], retro_arr.reshape(-1, 1)))
+        print(x)
+        # print(smthin['info'])
+        # print(np.shape(smthin['data']))
+        # print(smthin['materialId'])
+        print(flush=True)
+        prev_ts = smthin['timestamp'][0]
+    # print(smthin)
+    # print(smthin['data'])
+    # print(smthin['materialId'])
+    # print(smthin['info'])
 
 # rclpy.shutdown()
 
