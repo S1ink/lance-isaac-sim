@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="utf-8"?>
+<COLLADA xmlns="http://www.collada.org/2005/11/COLLADASchema" version="1.4.1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <asset>
+    <contributor>
+      <author>Blender User</author>
+      <authoring_tool>Blender 4.2.3 LTS commit date:2024-10-14, commit time:15:20, hash:0e22e4fcea03</authoring_tool>
+    </contributor>
+    <created>2024-10-31T23:39:43</created>
+    <modified>2024-10-31T23:39:43</modified>
+    <unit name="meter" meter="1"/>
+    <up_axis>Z_UP</up_axis>
+  </asset>
+  <library_effects>
+    <effect id="ID10-effect">
+      <profile_COMMON>
+        <technique sid="common">
+          <lambert>
+            <emission>
+              <color sid="emission">0 0 0 1</color>
+            </emission>
+            <diffuse>
+              <color sid="diffuse">0.866667 0.905882 1 1</color>
+            </diffuse>
+            <index_of_refraction>
+              <float sid="ior">1.5</float>
+            </index_of_refraction>
+          </lambert>
+        </technique>
+      </profile_COMMON>
+    </effect>
+  </library_effects>
+  <library_images/>
+  <library_materials>
+    <material id="ID10-material" name="ID10">
+      <instance_effect url="#ID10-effect"/>
+    </material>
+  </library_materials>
+  <library_geometries>
+    <geometry id="Object-mesh" name="Object">
+      <mesh>
+        <source id="Object-mesh-positions">
+          <float_array id="Object-mesh-positions-array" count="72">0.262683 0.245438 -0.04983168 0.192683 0.245438 0.0714119 0.196147 0.245438 0.07341188 0.266147 0.245438 -0.04783165 0.196147 0.245438 0.07341188 0.192683 0.245438 0.0714119 0.192683 -0.245438 0.0714119 0.196147 -0.245438 0.07341188 0.196147 -0.245438 0.07341188 0.262683 -0.245438 -0.04983168 0.266147 -0.245438 -0.04783165 0.192683 -0.245438 0.0714119 0.266147 0.245438 -0.04783165 0.196147 0.245438 0.07341188 0.196147 -0.245438 0.07341188 0.266147 -0.245438 -0.04783165 0.192683 -0.245438 0.0714119 0.192683 0.245438 0.0714119 0.262683 0.245438 -0.04983168 0.262683 -0.245438 -0.04983168 0.262683 -0.245438 -0.04983168 0.262683 0.245438 -0.04983168 0.266147 0.245438 -0.04783165 0.266147 -0.245438 -0.04783165</float_array>
+          <technique_common>
+            <accessor source="#Object-mesh-positions-array" count="24" stride="3">
+              <param name="X" type="float"/>
+              <param name="Y" type="float"/>
+              <param name="Z" type="float"/>
+            </accessor>
+          </technique_common>
+        </source>
+        <source id="Object-mesh-normals">
+          <float_array id="Object-mesh-normals-array" count="30">0 1 4.15779e-7 0 1 0 -0.5000126 0 0.8660182 0 -1 -2.07889e-7 0 -1 0 0.8660255 0 0.4999998 -0.8660255 0 -0.4999999 -0.8660255 0 -0.4999999 0.5000128 0 -0.8660181 0.5000142 0 -0.8660172</float_array>
+          <technique_common>
+            <accessor source="#Object-mesh-normals-array" count="10" stride="3">
+              <param name="X" type="float"/>
+              <param name="Y" type="float"/>
+              <param name="Z" type="float"/>
+            </accessor>
+          </technique_common>
+        </source>
+        <vertices id="Object-mesh-vertices">
+          <input semantic="POSITION" source="#Object-mesh-positions"/>
+        </vertices>
+        <triangles material="ID10-material" count="12">
+          <input semantic="VERTEX" source="#Object-mesh-vertices" offset="0"/>
+          <input semantic="NORMAL" source="#Object-mesh-normals" offset="1"/>
+          <p>0 0 1 0 2 0 0 1 2 1 3 1 4 2 5 2 6 2 6 2 7 2 4 2 8 3 9 3 10 3 8 4 11 4 9 4 12 5 13 5 14 5 14 5 15 5 12 5 16 6 17 6 18 6 16 7 18 7 19 7 20 8 21 8 22 8 20 9 22 9 23 9</p>
+        </triangles>
+      </mesh>
+    </geometry>
+  </library_geometries>
+  <library_visual_scenes>
+    <visual_scene id="Scene" name="Scene">
+      <node id="Frame_Assembly" name="Frame Assembly" type="NODE">
+        <matrix sid="transform">1 0 0 0 0 1 0 0 0 0 1 0 0 0 0 1</matrix>
+        <node id="Object" name="Object" type="NODE">
+          <matrix sid="transform">1 0 0 0 0 1 0 0 0 0 1 0 0 0 0 1</matrix>
+          <instance_geometry url="#Object-mesh" name="Object">
+            <bind_material>
+              <technique_common>
+                <instance_material symbol="ID10-material" target="#ID10-material"/>
+              </technique_common>
+            </bind_material>
+          </instance_geometry>
+        </node>
+      </node>
+    </visual_scene>
+  </library_visual_scenes>
+  <scene>
+    <instance_visual_scene url="#Scene"/>
+  </scene>
+</COLLADA>
