@@ -11,10 +11,11 @@
 # Extension API docs: https://docs.omniverse.nvidia.com/py/isaacsim/source/extensions/omni.isaac.core_nodes/docs/index.html
 # Replicator (annotator, writer): https://docs.omniverse.nvidia.com/extensions/latest/ext_replicator.html
 # ROS: https://docs.omniverse.nvidia.com/isaacsim/latest/ros_ros2_tutorials.html
+# Ubuntu 22 nvidia drivers screwed and laggy: https://www.reddit.com/r/Ubuntu/comments/ub1zun/comment/itbrp2m/
 
 # import argparse
-import asyncio
-import sys
+# import asyncio
+# import sys
 import numpy as np
 
 # parser = argparse.ArgumentParser()
@@ -35,91 +36,15 @@ from omni.isaac.core.utils import stage
 from omni.isaac.core.utils.prims import is_prim_path_valid, define_prim, set_prim_property, create_prim, get_prim_at_path
 from omni.isaac.core.utils.extensions import enable_extension
 from omni.isaac.nucleus import get_assets_root_path
-from omni.isaac.sensor.ogn.python.nodes import OgnIsaacPrintRTXSensorInfo
+# from omni.isaac.sensor.ogn.python.nodes import OgnIsaacPrintRTXSensorInfo
 from pxr import Gf
 
-# import rclpy
+import rclpy
 # from rclpy.node import Node
-# import sensor_msgs.msg as sensor_msgs
-# import std_msgs.msg as std_msgs
-# from builtin_interfaces.msg._time import Time
+import sensor_msgs.msg as sensor_msgs
+import std_msgs.msg as std_msgs
+from builtin_interfaces.msg._time import Time
 
-
-# class PointCloudPublisher(Node):
-
-#     def __init__(self):
-#         super().__init__('isaac_point_cloud_publisher')
-
-#         self.RENDER_PATH = "/Render/PostProcess/SDGPipeline"
-#         self.PUB_FREQ = 20.
-
-#         self.points = np.array([[1, 1, 1, 1]])
-#         self.time = Time()
-#         self.points_pub = self.create_publisher(sensor_msgs.PointCloud2, '/lidar_points', 10)
-#         self.timer = self.create_timer(self.PUB_FREQ, self._lidar_callback)
-
-#     def _lidar_callback(self):
-#         p = self.RENDER_PATH + "RenderProduct_Isaac_RtxSensorCpuIsaacComputeRTXLidarPointCloud"
-#         if is_prim_path_valid(p) :
-#             lidar_compute_node_path = p
-#         else :
-#             for i in range(1, 10) :
-#                 p = self.RENDER_PATH + f"Render_Product_Isaac_0{i}_RtxSensorCpuIsaacComputeRTXLidarPointCloud"
-#                 if is_prim_path_valid(p) :
-#                     lidar_compute_node_path = p
-#                     break
-        
-#         compute_node = og.Controller().node(lidar_compute_node_path)
-#         r_arr = compute_node.get_attribute("outputs:range").get()
-#         elev_arr = compute_node.get_attribute("outputs:elevation").get()
-#         azim_arr = compute_node.get_attribute("outputs:azimuth").get()
-#         intensity_array = compute_node.get_attribute("outputs:intensity").get()
-
-#         x = r_arr * np.sin(elev_arr) * np.cos(azim_arr)
-#         y = r_arr * np.sin(elev_arr) * np.sin(azim_arr) * -1
-#         z = r_arr * np.cos(elev_arr)
-
-#         self.points = np.column_stack((x, y, z, intensity_array))
-#         self.time = self.get_clock().now().to_msg()
-#         self.point_cloud = self._create_point_cloud(self.points, self.time, 'lidar_link')
-#         self.points_pub.publish(self.point_cloud)
-
-#     def _create_point_cloud(self, points, time, parent_frame):
-#         ros_dtype = sensor_msgs.PointField.FLOAT32
-#         dtype = np.float32
-#         itemsize = np.dtype(dtype).itemsize
-
-#         data = points.astype(dtype).tobytes()
-#         fields = [
-#             sensor_msgs.PointField(name = 'x', offset = 0, datatype = ros_dtype, count = 1),
-#             sensor_msgs.PointField(name = 'y', offset = 4, datatype = ros_dtype, count = 1),
-#             sensor_msgs.PointField(name = 'z', offset = 8, datatype = ros_dtype, count = 1),
-#             sensor_msgs.PointField(name = 'intensity', offset = 12, datatype = ros_dtype, count = 1),
-#         ]
-#         header = std_msgs.Header(stamp = time, frame_id = parent_frame)
-
-#         return sensor_msgs.PointCloud2(
-#             header = header,
-#             height = 1,
-#             width = points.shape[0],
-#             is_dense = True,
-#             is_bigendian = False,
-#             fields = fields,
-#             point_step = (itemsize * 4),
-#             row_step = (itemsize * 4 * points.shape[0]),
-#             data = data
-#         )
-
-# async def lidar_task():
-#     publisher = PointCloudPublisher()
-
-#     while rclpy.ok():
-#         rclpy.spin_once(publisher)
-#         await asyncio.sleep(0.02)
-
-#     publisher.unregister()
-#     publisher = None
-        
 
 # enable ROS bridge extension
 enable_extension("omni.isaac.debug_draw")
@@ -128,20 +53,15 @@ enable_extension("omni.isaac.ros2_bridge")
 
 simulation_app.update()
 
-carb.settings.get_settings().set("persistent/app/omniverse/gamepadCameraControl", False)
+PHYSICS_RATE = 60 # fps
+RENDER_RATE = 60
+carb_settings = carb.settings.get_settings()
+carb_settings.set_bool("/app/runLoops/main/rateLimitEnabled", True)
+carb_settings.set_int("/app/runLoops/main/rateLimitFrequency", int(PHYSICS_RATE))
+carb_settings.set_int("/persistent/simulation/minFrameRate", int(PHYSICS_RATE))
+carb_settings.set("/persistent/app/omniverse/gamepadCameraControl", False)
 
-# Locate Isaac Sim assets folder to load environment and robot stages
-# assets_root_path = get_assets_root_path()
-# if assets_root_path is None:
-#     carb.log_error("Could not find Isaac Sim assets folder")
-#     simulation_app.close()
-#     sys.exit()
 
-# simulation_app.update()
-# Loading the simple_room environment
-# stage.add_reference_to_stage(
-#     assets_root_path + "/Isaac/Environments/Simple_Warehouse/full_warehouse.usd", "/warehouse"
-# )
 stage.add_reference_to_stage(
     "./assets/artemis_arena.usd", "/arena"
 )
@@ -179,16 +99,11 @@ _, sensor = omni.kit.commands.execute(
 )
 hydra_texture = rep.create.render_product(sensor.GetPath(), [1, 1], name="Isaac")
 
-simulation_context = SimulationContext(physics_dt=1.0 / 60.0, rendering_dt=1.0 / 60.0, stage_units_in_meters=1.0)
-simulation_app.update()
-
 # Create the debug draw pipeline in the post process graph
-debug_writer = rep.writers.get("RtxLidar" + "DebugDrawPointCloud" + "Buffer")
+debug_writer = rep.writers.get("RtxLidarDebugDrawPointCloudBuffer")
 debug_writer.initialize(color = (0.7, 0.1, 1, 0.7))
 debug_writer.attach([hydra_texture])
-# ros_writer = rep.writers.get("RtxLidar" + "ROS2PublishPointCloud")
-# ros_writer.initialize(topicName = "/lance/lidar_scan", frameId = "lidar_link", queueSize = 1)
-# ros_writer.attach([hydra_texture])
+
 lidar_annotator = rep.AnnotatorRegistry.get_annotator("RtxSensorCpuIsaacCreateRTXLidarScanBuffer")
 lidar_annotator.initialize(
     keepOnlyPositiveDistance = False,
@@ -201,7 +116,7 @@ lidar_annotator.initialize(
     outputMaterialId = True,
     outputNormal = False,
     outputObjectId = False,
-    outputTimestamp = True,
+    outputTimestamp = False,
     outputVelocity = False,
     transformPoints = False
 )
@@ -209,43 +124,151 @@ lidar_annotator.attach([hydra_texture])
 
 simulation_app.update()
 
-# simulation_context.play()
+rclpy.init()
 
-# rclpy.init()
+try:
+    og.Controller.edit(
+        {"graph_path": "/graphs/ROSGraph", "evaluator_name": "execution"},
+        {
+            og.Controller.Keys.CREATE_NODES: [
+                ("OnPlaybackTick", "omni.graph.action.OnPlaybackTick"),
+
+                ("ReadSimTime", "omni.isaac.core_nodes.IsaacReadSimulationTime"),
+                ("PublishClock", "omni.isaac.ros2_bridge.ROS2PublishClock"),
+
+                ("ReadIMU", "omni.isaac.sensor.IsaacReadIMU"),
+                ("PublishIMU", "omni.isaac.ros2_bridge.ROS2PublishImu"),
+
+                ("ReadRTF", "omni.isaac.core_nodes.IsaacRealTimeFactor"),
+                ("PublishRTF", "omni.isaac.ros2_bridge.ROS2Publisher")
+            ],
+            og.Controller.Keys.CONNECT: [
+                # Execution connections
+                ("OnPlaybackTick.outputs:tick", "PublishClock.inputs:execIn"),
+                ("OnPlaybackTick.outputs:tick", "ReadIMU.inputs:execIn"),
+                ("ReadIMU.outputs:execOut", "PublishIMU.inputs:execIn"),
+                ("OnPlaybackTick.outputs:tick", "PublishRTF.inputs:execIn"),
+                # Simulation time
+                ("ReadSimTime.outputs:simulationTime", "PublishClock.inputs:timeStamp"),
+                ("ReadSimTime.outputs:simulationTime", "PublishIMU.inputs:timeStamp"),
+                # IMU data
+                ("ReadIMU.outputs:angVel", "PublishIMU.inputs:angularVelocity"),
+                ("ReadIMU.outputs:linAcc", "PublishIMU.inputs:linearAcceleration"),
+                ("ReadIMU.outputs:orientation", "PublishIMU.inputs:orientation"),
+                # # Connecting the ROS2 Context to the clock publisher node so it will run under the specified ROS2 Domain ID
+                # ("Context.outputs:context", "PublishClock.inputs:context"),
+            ],
+            og.Controller.Keys.SET_VALUES: [
+                # Assigning topic name to clock publisher
+                ("PublishClock.inputs:topicName", "/clock"),
+                # # Assigning a Domain ID of 1 to Context node
+                # ("Context.inputs:domain_id", 1),
+                ("ReadSimTime.inputs:resetOnStop", True),
+
+                ("ReadIMU.inputs:imuPrim", "/lance/lance/lidar_link/imu_sensor"),
+                ("PublishIMU.inputs:frameId", "lidar_link"),
+                ("PublishIMU.inputs:queueSize", 1),
+                ("PublishIMU.inputs:topicName", "/lance/imu"),
+
+                ("PublishRTF.inputs:messageName", "Float32"),
+                ("PublishRTF.inputs:messagePackage", "std_msgs"),
+                ("PublishRTF.inputs:messageSubfolder", "msg"),
+                ("PublishRTF.inputs:topicName", "/isaac/rtf")
+            ],
+        },
+    )
+    og.Controller.connect(
+        og.Controller.attribute("/graphs/ROSGraph/ReadRTF.outputs:rtf"),
+        og.Controller.attribute("/graphs/ROSGraph/PublishRTF.inputs:data")
+    )
+except Exception as e:
+    print(e)
+
+simulation_app.update()
+
 def normalize_retro(x : float):
     return 1. if x == 12. or x == 11. else 0.   # https://docs.omniverse.nvidia.com/isaacsim/latest/features/sensors_simulation/isaac_sim_sensors_rtx_sensor_materials.html
 
 np_normalize_retro = np.frompyfunc(normalize_retro, 1, 1)
 
-# frame = 0
-prev_ts = None
+simulation_context = SimulationContext(
+    physics_dt = (1. / PHYSICS_RATE),
+    rendering_dt = (1. / RENDER_RATE),
+    stage_units_in_meters=1.
+)
+simulation_app.update()
+
+# simulation_context.play()
+
+node = rclpy.create_node("isaac_sim")
+pc_pub = node.create_publisher(sensor_msgs.PointCloud2, '/lance/lidar_points', 10)
+
+pc_ros_dtype = sensor_msgs.PointField.FLOAT32
+pc_dtype = np.float32
+pc_itemsize = np.dtype(pc_dtype).itemsize
+pc_fields = [
+    sensor_msgs.PointField(name = 'x', offset = 0, datatype = pc_ros_dtype, count = 1),
+    sensor_msgs.PointField(name = 'y', offset = 4, datatype = pc_ros_dtype, count = 1),
+    sensor_msgs.PointField(name = 'z', offset = 8, datatype = pc_ros_dtype, count = 1),
+    sensor_msgs.PointField(name = 'reflective', offset = 12, datatype = pc_ros_dtype, count = 1),
+]
+
+PC_PUB_RATE = 20
+PUB_THRESH_S = 0.002
+
+frame = 0
+prev_pub_t = -1
 while simulation_app.is_running():
-
-    # if frame == 48:
-    #     asyncio.ensure_future(lidar_task())
-
-    # frame = frame + 1
 
     simulation_app.update()
     # lidar_annotator.get_data()['data']
 
-    smthin = lidar_annotator.get_data()
-    if(len(smthin['data']) > 0 and smthin['timestamp'][0] != prev_ts) :
-        retro_arr = np_normalize_retro(smthin['materialId'])
-        x = np.hstack((smthin['data'], retro_arr.reshape(-1, 1)))
-        print(x)
-        # print(smthin['info'])
-        # print(np.shape(smthin['data']))
-        # print(smthin['materialId'])
-        print(flush=True)
-        prev_ts = smthin['timestamp'][0]
-    # print(smthin)
-    # print(smthin['data'])
-    # print(smthin['materialId'])
-    # print(smthin['info'])
+    if( simulation_context.is_playing() ) :
+        t = simulation_context.current_time
+        if( (t - prev_pub_t) > (1. / PC_PUB_RATE) - PUB_THRESH_S ) :
+            try:
+                lidar_data = lidar_annotator.get_data()
+                if( len(lidar_data['data']) > 0 ) :
+                    x = np.hstack( (
+                        lidar_data['data'],
+                        np_normalize_retro( lidar_data['materialId'] )
+                            .astype(pc_dtype).reshape(-1, 1)
+                    ) )
+                    # print(x)
+                    # print(lidar_data['info'])
+                    # print(np.shape(lidar_data['data']))
+                    # print(lidar_data['materialId'])
+                    # print(flush=True)
 
-# rclpy.shutdown()
+                    header = std_msgs.Header(
+                        stamp = Time(sec = int(t),
+                        nanosec = int(t * 1e9) % int(1e9)),
+                        frame_id = "lidar_link"
+                    )
+                    pc_pub.publish(
+                        sensor_msgs.PointCloud2(
+                            header = header,
+                            height = 1,
+                            width = x.shape[0],
+                            is_dense = True,
+                            is_bigendian = False,
+                            fields = pc_fields,
+                            point_step = pc_itemsize * x.shape[1],
+                            row_step = pc_itemsize * x.size,
+                            data = x.astype(pc_dtype).tobytes()
+                        ) )
+                    prev_pub_t = t
+
+            except Exception as e:
+                print(e)
+
+        print(t, frame)
+        frame = frame + 1
+
+    rclpy.spin_once(node, timeout_sec = 0.)
+
 
 # cleanup and shutdown
+rclpy.shutdown()
 simulation_context.stop()
 simulation_app.close()
