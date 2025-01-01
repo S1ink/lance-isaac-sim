@@ -3,6 +3,7 @@
 # Replicator (annotator, writer): https://docs.omniverse.nvidia.com/extensions/latest/ext_replicator.html
 # ROS: https://docs.omniverse.nvidia.com/isaacsim/latest/ros_ros2_tutorials.html
 # Fix Ubuntu 22 nvidia drivers screwed and laggy: https://www.reddit.com/r/Ubuntu/comments/ub1zun/comment/itbrp2m/
+# Python API docs: https://docs.omniverse.nvidia.com/kit/docs/
 
 import argparse
 # import asyncio
@@ -133,29 +134,29 @@ try:
         {"graph_path": "/graphs/ROSGraph", "evaluator_name": "execution"},
         {
             og.Controller.Keys.CREATE_NODES: [
-                ("OnPlaybackTick", "omni.graph.action.OnPlaybackTick"),
-
-                ("ReadSimTime", "omni.isaac.core_nodes.IsaacReadSimulationTime"),
-                ("PublishClock", "omni.isaac.ros2_bridge.ROS2PublishClock"),
-
-                ("ReadIMU", "omni.isaac.sensor.IsaacReadIMU"),
-                ("PublishIMU", "omni.isaac.ros2_bridge.ROS2PublishImu"),
-
-                ("ReadRTF", "omni.isaac.core_nodes.IsaacRealTimeFactor"),
-                ("PublishRTF", "omni.isaac.ros2_bridge.ROS2Publisher")
+                ("OnPlaybackTick",  "omni.graph.action.OnPlaybackTick"),
+                ("ReadSimTime",     "omni.isaac.core_nodes.IsaacReadSimulationTime"),
+                ("PublishClock",    "omni.isaac.ros2_bridge.ROS2PublishClock"),
+                ("ReadIMU",         "omni.isaac.sensor.IsaacReadIMU"),
+                ("PublishIMU",      "omni.isaac.ros2_bridge.ROS2PublishImu"),
+                ("ReadRTF",         "omni.isaac.core_nodes.IsaacRealTimeFactor"),
+                ("PublishRTF",      "omni.isaac.ros2_bridge.ROS2Publisher"),
+                ("DumpJointPub",    "omni.isaac.ros2_bridge.ROS2PublishTransformTree")
             ],
             og.Controller.Keys.CONNECT: [
                 # Execution connections
                 ("OnPlaybackTick.outputs:tick", "PublishClock.inputs:execIn"),
                 ("OnPlaybackTick.outputs:tick", "ReadIMU.inputs:execIn"),
-                ("ReadIMU.outputs:execOut", "PublishIMU.inputs:execIn"),
+                ("ReadIMU.outputs:execOut",     "PublishIMU.inputs:execIn"),
                 ("OnPlaybackTick.outputs:tick", "PublishRTF.inputs:execIn"),
+                ("OnPlaybackTick.outputs:tick", "DumpJointPub.inputs:execIn"),
                 # Simulation time
                 ("ReadSimTime.outputs:simulationTime", "PublishClock.inputs:timeStamp"),
                 ("ReadSimTime.outputs:simulationTime", "PublishIMU.inputs:timeStamp"),
+                ("ReadSimTime.outputs:simulationTime", "DumpJointPub.inputs:timeStamp"),
                 # IMU data
-                ("ReadIMU.outputs:angVel", "PublishIMU.inputs:angularVelocity"),
-                ("ReadIMU.outputs:linAcc", "PublishIMU.inputs:linearAcceleration"),
+                ("ReadIMU.outputs:angVel",      "PublishIMU.inputs:angularVelocity"),
+                ("ReadIMU.outputs:linAcc",      "PublishIMU.inputs:linearAcceleration"),
                 ("ReadIMU.outputs:orientation", "PublishIMU.inputs:orientation"),
                 # # Connecting the ROS2 Context to the clock publisher node so it will run under the specified ROS2 Domain ID
                 # ("Context.outputs:context", "PublishClock.inputs:context"),
@@ -167,21 +168,112 @@ try:
                 # ("Context.inputs:domain_id", 1),
                 ("ReadSimTime.inputs:resetOnStop", True),
 
-                ("ReadIMU.inputs:imuPrim", "/lance/lance/lidar_link/imu_sensor"),
-                ("PublishIMU.inputs:frameId", "lidar_link"),
+                ("ReadIMU.inputs:imuPrim",      "/lance/lance/lidar_link/imu_sensor"),
+                ("PublishIMU.inputs:frameId",   "lidar_link"),
                 ("PublishIMU.inputs:queueSize", 1),
                 ("PublishIMU.inputs:topicName", "/lance/imu"),
 
-                ("PublishRTF.inputs:messageName", "Float32"),
-                ("PublishRTF.inputs:messagePackage", "std_msgs"),
-                ("PublishRTF.inputs:messageSubfolder", "msg"),
-                ("PublishRTF.inputs:topicName", "/isaac/rtf")
+                ("PublishRTF.inputs:messageName",       "Float32"),
+                ("PublishRTF.inputs:messagePackage",    "std_msgs"),
+                ("PublishRTF.inputs:messageSubfolder",  "msg"),
+                ("PublishRTF.inputs:topicName",         "/isaac/rtf"),
+
+                ("DumpJointPub.inputs:parentPrim",  "/lance/lance/frame_link"),
+                ("DumpJointPub.inputs:targetPrims", "/lance/lance/collection_link"),
             ],
         },
     )
     og.Controller.connect(
         og.Controller.attribute("/graphs/ROSGraph/ReadRTF.outputs:rtf"),
         og.Controller.attribute("/graphs/ROSGraph/PublishRTF.inputs:data")
+    )
+except Exception as e:
+    print(e)
+
+simulation_app.update()
+
+try:
+    og.Controller.edit(
+        {
+            "graph_path" : "/graphs/ControlGraph",
+            "evaluator_name" : "execution",
+            "pipeline_stage" : og.GraphPipelineStage.GRAPH_PIPELINE_STAGE_ONDEMAND
+        },
+        {
+            og.Controller.Keys.CREATE_NODES: [
+                ("PhysicsStep",     "omni.isaac.core_nodes.OnPhysicsStep"),
+                ("TwistSub",        "omni.isaac.ros2_bridge.ROS2SubscribeTwist"),
+                ("GetXVel",         "omni.graph.nodes.BreakVector3"),
+                ("GetRotVel",       "omni.graph.nodes.BreakVector3"),
+                ("DiffController",  "omni.isaac.wheeled_robots.DifferentialController"),
+                ("GetLeftVel",      "omni.graph.nodes.ArrayIndex"),
+                ("GetRightVel",     "omni.graph.nodes.ArrayIndex"),
+                ("LeftController",  "omni.isaac.conveyor.IsaacConveyor"),
+                ("RightController", "omni.isaac.conveyor.IsaacConveyor"),
+                ("DumpSub",         "omni.isaac.ros2_bridge.ROS2Subscriber"),
+                ("JointToken",      "omni.graph.nodes.ConstantToken"),
+                ("MakeTokenArray",  "omni.graph.nodes.ConstructArray"),
+                ("ToDouble",        "omni.graph.nodes.ToDouble"),
+                ("MakeVelArray",    "omni.graph.nodes.ConstructArray"),
+                ("DumpController",  "omni.isaac.core_nodes.IsaacArticulationController"),
+            ],
+            og.Controller.Keys.CONNECT: [
+                ("PhysicsStep.outputs:step",    "TwistSub.inputs:execIn"),
+                ("PhysicsStep.outputs:step",    "LeftController.inputs:onStep"),
+                ("PhysicsStep.outputs:step",    "RightController.inputs:onStep"),
+                ("PhysicsStep.outputs:step",    "DumpSub.inputs:execIn"),
+                ("TwistSub.outputs:execOut",    "DiffController.inputs:execIn"),
+                ("DumpSub.outputs:execOut",     "DumpController.inputs:execIn"),
+
+                ("TwistSub.outputs:angularVelocity",        "GetRotVel.inputs:tuple"),
+                ("TwistSub.outputs:linearVelocity",         "GetXVel.inputs:tuple"),
+                ("GetRotVel.outputs:z",                     "DiffController.inputs:angularVelocity"),
+                ("GetXVel.outputs:x",                       "DiffController.inputs:linearVelocity"),
+                ("PhysicsStep.outputs:deltaSimulationTime", "DiffController.inputs:dt"),
+                ("DiffController.outputs:velocityCommand",  "GetLeftVel.inputs:array"),
+                ("DiffController.outputs:velocityCommand",  "GetRightVel.inputs:array"),
+                ("GetLeftVel.outputs:value",                "LeftController.inputs:velocity"),
+                ("GetRightVel.outputs:value",               "RightController.inputs:velocity"),
+                ("PhysicsStep.outputs:deltaSimulationTime", "LeftController.inputs:delta"),
+                ("PhysicsStep.outputs:deltaSimulationTime", "RightController.inputs:delta"),
+
+                ("JointToken.inputs:value",        "MakeTokenArray.inputs:input0"),
+                ("ToDouble.outputs:converted",      "MakeVelArray.inputs:input0"),
+                ("MakeTokenArray.outputs:array",    "DumpController.inputs:jointNames"),
+                ("MakeVelArray.outputs:array",      "DumpController.inputs:velocityCommand"),
+            ],
+            og.Controller.Keys.SET_VALUES: [
+                ("TwistSub.inputs:topicName", "/robot_cmd_vel"),
+
+                ("DiffController.inputs:maxAcceleration",        10.),
+                ("DiffController.inputs:maxAngularAcceleration", 20.),
+                ("DiffController.inputs:maxAngularSpeed",        5.),
+                ("DiffController.inputs:maxDeceleration",        10.),
+                ("DiffController.inputs:maxLinearSpeed",         3.),
+                ("DiffController.inputs:maxWheelSpeed",          2.5),
+                ("DiffController.inputs:wheelDistance",          0.579),
+                ("DiffController.inputs:wheelRadius",            1.),
+
+                ("GetLeftVel.inputs:index",     1),
+                ("GetRightVel.inputs:index",    0),
+
+                ("LeftController.inputs:conveyorPrim",  "/lance/lance/left_track_link"),
+                ("RightController.inputs:conveyorPrim", "/lance/lance/right_track_link"),
+
+                ("DumpSub.inputs:messageName",      "Float64"),
+                ("DumpSub.inputs:messagePackage",   "std_msgs"),
+                ("DumpSub.inputs:messageSubfolder", "msg"),
+                ("DumpSub.inputs:topicName",        "/dump_cmd_vel"),
+
+                ("JointToken.inputs:value", "dump_joint"),
+
+                ("DumpController.inputs:targetPrim", "/lance/lance"),
+            ]
+        }
+    )
+    og.Controller.connect(
+        og.Controller.attribute("/graphs/ControlGraph/DumpSub.outputs:data"),
+        og.Controller.attribute("/graphs/ControlGraph/ToDouble.inputs:value")
     )
 except Exception as e:
     print(e)

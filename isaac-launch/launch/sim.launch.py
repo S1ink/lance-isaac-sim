@@ -131,13 +131,13 @@ def generate_launch_description():
     )
 
     return LaunchDescription([
-        DeclareLaunchArgument('isaac-root', default_value='~/.local/share/ov/pkg/isaac-sim-4.2.0/'),
+        DeclareLaunchArgument('isaac-root', default_value=os.path.join(os.getenv('HOME'), '.local/share/ov/pkg/isaac-sim-4.2.0/')),
         DeclareLaunchArgument('foxglove', default_value='true'),
         isaac_sim,
-        # launch_xbox_ctrl,
+        launch_xbox_ctrl,
         # tag_detector,
         state_publisher,
-        perception_node,
+        # perception_node,
         foxglove_node,
         # make_accuracy_analyzer('base_link', 'map', 'gz_base_link', 0.25, True, 'localization_acc_analysis'),
         # make_accuracy_analyzer('base_link_e0', 'map', 'gz_base_link', 0.25, True, 'tags_detection_acc_analysis')
