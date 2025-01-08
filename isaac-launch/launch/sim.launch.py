@@ -77,7 +77,8 @@ def generate_launch_description():
             '--gui', 'true',
             '--assets', os.path.join(sim_pkg_path, 'assets/')
         ],
-        output = 'screen'
+        output = 'screen',
+        # prefix = ['xterm -e']
     )
     # launch xbox control
     launch_xbox_ctrl = IncludeLaunchDescription(

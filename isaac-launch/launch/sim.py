@@ -9,12 +9,24 @@ import argparse
 # import asyncio
 # import sys
 import numpy as np
+import json
+import time
 
 parser = argparse.ArgumentParser()
 # parser.add_argument("-c", "--config", type=str, default="Example_Rotary", help="Name of lidar config.")
 parser.add_argument("-g", "--gui", type=str, default="true", help="Enable Isaac Sim Gui")
 parser.add_argument("-a", "--assets", type=str, default="./assets/", help="Assets path")
+parser.add_argument("-l", "--lidar", type=str, default="SICK_multiScan136", help="Lidar config name")
 args, _ = parser.parse_known_args()
+
+asset_path = args.assets
+lidar_conf = args.lidar
+# try:
+f = open(asset_path + lidar_conf + ".json")
+data = json.load(f)
+lidar_timings = np.array(data['profile']['emitterStates'][0]['fireTimeNs'], dtype=np.uint64).reshape(-1, 1) / 1000
+# except Exception as e:
+#     print(e)
 
 from isaacsim import SimulationApp
 
@@ -58,7 +70,6 @@ carb_settings.set_int("/persistent/simulation/minFrameRate", int(PHYSICS_RATE))
 carb_settings.set("/persistent/app/omniverse/gamepadCameraControl", False)
 
 
-asset_path = args.assets
 try:
     stage.add_reference_to_stage(
         asset_path + "artemis_arena.usd", "/arena"
@@ -78,7 +89,7 @@ set_prim_property(
 set_prim_property(
     prim_path = "/lance/lance",
     property_name = "xformOp:translate",
-    property_value = (1, 1, 0.5) )
+    property_value = (1, 1, 0.445) )
 create_prim(
     prim_path = "/distantlight",
     prim_type = "DistantLight", 
@@ -95,7 +106,7 @@ _, sensor = omni.kit.commands.execute(
     "IsaacSensorCreateRtxLidar",
     path="/lance/lance/lidar_link/sensor",
     parent=None,
-    config="SICK_multiScan136",
+    config=lidar_conf,
     translation=(0, 0, 0),
     orientation=Gf.Quatd(1.0, 0.0, 0.0, 0.0),  # Gf.Quatd is w,i,j,k
 )
@@ -110,12 +121,12 @@ if (not headless) :
 lidar_annotator = rep.AnnotatorRegistry.get_annotator("RtxSensorCpuIsaacCreateRTXLidarScanBuffer")
 lidar_annotator.initialize(
     keepOnlyPositiveDistance = False,
-    outputAzimuth = False,
+    outputAzimuth = True,
     outputBeamId = False,
-    outputDistance = False,
-    outputElevation = False,
+    outputDistance = True,
+    outputElevation = True,
     outputEmitterId = False,
-    outputIntensity = False,
+    outputIntensity = True,
     outputMaterialId = True,
     outputNormal = False,
     outputObjectId = False,
@@ -245,12 +256,12 @@ try:
             og.Controller.Keys.SET_VALUES: [
                 ("TwistSub.inputs:topicName", "/robot_cmd_vel"),
 
-                ("DiffController.inputs:maxAcceleration",        10.),
-                ("DiffController.inputs:maxAngularAcceleration", 20.),
+                ("DiffController.inputs:maxAcceleration",        3.),
+                ("DiffController.inputs:maxAngularAcceleration", 10.),
                 ("DiffController.inputs:maxAngularSpeed",        5.),
-                ("DiffController.inputs:maxDeceleration",        10.),
-                ("DiffController.inputs:maxLinearSpeed",         3.),
-                ("DiffController.inputs:maxWheelSpeed",          2.5),
+                ("DiffController.inputs:maxDeceleration",        3.5),
+                ("DiffController.inputs:maxLinearSpeed",         1.5),
+                ("DiffController.inputs:maxWheelSpeed",          2.),
                 ("DiffController.inputs:wheelDistance",          0.579),
                 ("DiffController.inputs:wheelRadius",            1.),
 
@@ -295,14 +306,27 @@ simulation_app.update()
 node = rclpy.create_node("isaac_sim")
 pc_pub = node.create_publisher(sensor_msgs.PointCloud2, '/lance/lidar_scan', 10)
 
-pc_ros_dtype = sensor_msgs.PointField.FLOAT32
-pc_dtype = np.float32
-pc_itemsize = np.dtype(pc_dtype).itemsize
+pc_dtype = np.dtype( [
+    ('xyz', np.float32, (3,)),
+    ('reflective', np.float32, (1,)),
+    ('range', np.float32, (1,)),
+    ('azimuth', np.float32, (1,)),
+    ('elevation', np.float32, (1,)),
+    ('intensity', np.float32, (1,)),
+    ('ts', np.uint64, (1,))
+] )
+# pc_itemsize = np.dtype(pc_dtype).itemsize
 pc_fields = [
-    sensor_msgs.PointField(name = 'x', offset = 0, datatype = pc_ros_dtype, count = 1),
-    sensor_msgs.PointField(name = 'y', offset = 4, datatype = pc_ros_dtype, count = 1),
-    sensor_msgs.PointField(name = 'z', offset = 8, datatype = pc_ros_dtype, count = 1),
-    sensor_msgs.PointField(name = 'reflective', offset = 12, datatype = pc_ros_dtype, count = 1),
+    sensor_msgs.PointField(name = 'x',          offset = 0, datatype = sensor_msgs.PointField.FLOAT32, count = 1),
+    sensor_msgs.PointField(name = 'y',          offset = 4, datatype = sensor_msgs.PointField.FLOAT32, count = 1),
+    sensor_msgs.PointField(name = 'z',          offset = 8, datatype = sensor_msgs.PointField.FLOAT32, count = 1),
+    sensor_msgs.PointField(name = 'reflective', offset = 12, datatype = sensor_msgs.PointField.FLOAT32, count = 1),
+    sensor_msgs.PointField(name = 'range',      offset = 16, datatype = sensor_msgs.PointField.FLOAT32, count = 1),
+    sensor_msgs.PointField(name = 'azimuth',    offset = 20, datatype = sensor_msgs.PointField.FLOAT32, count = 1),
+    sensor_msgs.PointField(name = 'elevation',  offset = 24, datatype = sensor_msgs.PointField.FLOAT32, count = 1),
+    sensor_msgs.PointField(name = 'intensity',  offset = 28, datatype = sensor_msgs.PointField.FLOAT32, count = 1),
+    sensor_msgs.PointField(name = 'tl',         offset = 32, datatype = sensor_msgs.PointField.UINT32, count = 1),
+    sensor_msgs.PointField(name = 'th',         offset = 36, datatype = sensor_msgs.PointField.UINT32, count = 1),
 ]
 
 PC_PUB_RATE = 20
@@ -312,54 +336,62 @@ if (headless) :
     simulation_app.update()
     simulation_context.play()
 
-frame = 0
 prev_pub_t = -1
+context_changed = True
 while simulation_app.is_running():
 
     simulation_app.update()
     # lidar_annotator.get_data()['data']
 
-    if( simulation_context.is_playing() ) :
+    if simulation_context.is_playing() :
         t = simulation_context.current_time
-        if( (t - prev_pub_t) > (1. / PC_PUB_RATE) - PUB_THRESH_S ) :
+        if context_changed : prev_pub_t = t
+        if ((t - prev_pub_t) > (1. / PC_PUB_RATE) - PUB_THRESH_S) :
+
+            # begin = time.perf_counter()
             try:
                 lidar_data = lidar_annotator.get_data()
-                if( len(lidar_data['data']) > 0 ) :
-                    x = np.hstack( (
-                        lidar_data['data'],
-                        np_normalize_retro( lidar_data['materialId'] )
-                            .astype(pc_dtype).reshape(-1, 1)
-                    ) )
-                    # print(x)
-                    # print(lidar_data['info'])
-                    # print(np.shape(lidar_data['data']))
-                    # print(lidar_data['materialId'])
-                    # print(flush=True)
+                xyz = lidar_data['data']
+
+                if (len(xyz) > 0) :
+
+                    scan_buff = np.empty(xyz.shape[0], dtype = pc_dtype)
+                    scan_buff['xyz'] = xyz
+                    scan_buff['reflective'] = np_normalize_retro( lidar_data['materialId'] ).astype(np.float32).reshape(-1, 1)
+                    scan_buff['range'] = lidar_data['distance'].astype(np.float32).reshape(-1, 1)
+                    scan_buff['azimuth'] = lidar_data['azimuth'].astype(np.float32).reshape(-1, 1)
+                    scan_buff['elevation'] = lidar_data['elevation'].astype(np.float32).reshape(-1, 1)
+                    scan_buff['intensity'] = lidar_data['intensity'].astype(np.float32).reshape(-1, 1)
+                    scan_buff['ts'] = (lidar_timings + (int)(prev_pub_t * 1e6)).astype(np.uint64)
 
                     header = std_msgs.Header(
-                        stamp = Time(sec = int(t),
-                        nanosec = int(t * 1e9) % int(1e9)),
+                        stamp = Time(sec = int(prev_pub_t),
+                        nanosec = int(prev_pub_t * 1e9) % int(1e9)),
                         frame_id = "lidar_link"
                     )
                     pc_pub.publish(
                         sensor_msgs.PointCloud2(
                             header = header,
                             height = 1,
-                            width = x.shape[0],
+                            width = scan_buff.shape[0],
                             is_dense = True,
                             is_bigendian = False,
                             fields = pc_fields,
-                            point_step = pc_itemsize * x.shape[1],
-                            row_step = pc_itemsize * x.size,
-                            data = x.astype(pc_dtype).tobytes()
+                            point_step = 40,
+                            row_step = 40 * scan_buff.shape[0],
+                            data = scan_buff.tobytes()
                         ) )
                     prev_pub_t = t
 
             except Exception as e:
                 print(e)
 
-        # print(t, frame)
-        frame = frame + 1
+            # end = time.perf_counter()
+            # print(f"Scan pub dt: {end - begin}", t, flush=True)
+
+        context_changed = False
+    else:
+        context_changed = True
 
     rclpy.spin_once(node, timeout_sec = 0.)
 
